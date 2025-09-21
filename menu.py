@@ -10,25 +10,28 @@ def display_menu():
     screen = pygame.display.set_mode((1280, 720))
     screen.fill("Black")
 
-    # Base path for assets
+    #base path for assets
     base_path = os.path.join(os.path.dirname(__file__), "assets")
 
-    # Load background image
+    #load background image
     bg_path = os.path.join(base_path, "Backgrounds", "background.png")
     full_moon = pygame.image.load(bg_path)
     full_moon = pygame.transform.scale(full_moon, (1280, 720))
 
-    # Title text
-    font_path = os.path.join(base_path, "Font", "ka1.ttf")
+    #title text
+    font_path =os.path.join(base_path, "Font", "ka1.ttf")
     title_text_font = pygame.font.Font(font_path, 60)
-    title_text_surface = title_text_font.render("Scientists vs. Aliens", True, "#5d2285")
+    title_text_surface = title_text_font.render("Scientists vs. Aliens", False, "#5d2285")
 
-    # Button setup
-    button_rect = pygame.Rect(100, 160, 184, 64)
+    #button setup
+    button_rect = pygame.Rect(550, 290, 180, 70)
     button_color = "#5d2285"
     button_hover_color = "#7e3bbd"
-    button_text_font = pygame.font.Font(font_path, 40)
-    button_text_surface = button_text_font.render("Play", True, "White")
+
+    #play button text using Arial
+    play_font = pygame.font.SysFont("Arial", 30)
+    play_text_surface = play_font.render("PLAY", True, "White")
+    play_text_rect = play_text_surface.get_rect(center=button_rect.center)
 
     running = True
     while running:
@@ -41,8 +44,8 @@ def display_menu():
         else:
             pygame.draw.rect(screen, button_color, button_rect)
 
-        text_rect = button_text_surface.get_rect(center=button_rect.center)
-        screen.blit(button_text_surface, text_rect)
+        #drawing "PLAY" on button
+        screen.blit(play_text_surface, play_text_rect)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -52,13 +55,12 @@ def display_menu():
                 if button_rect.collidepoint(event.pos):
                     print("Button Pressed")
                     pygame.quit()
-                    game_path = os.path.join(os.path.dirname(__file__),"main.py")
+                    game_path = os.path.join(os.path.dirname(__file__), "main.py")
                     call(["python", game_path])
                     exit()
 
         pygame.display.update()
         clock.tick(60)
 
-if __name__ == "__main__":
-    print("hello")
-    display_menu()
+
+display_menu()
