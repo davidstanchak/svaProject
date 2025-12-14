@@ -201,10 +201,6 @@ def main():
     spawning_active = False
     alien_spawn_delay = 7000  # 7 seconds
 
-    # Draggable item buttons
-    item_blue = PlaceableItem(margin_sides + 20, 40, CELL_WIDTH // 2, CELL_HEIGHT // 2, "blue")
-    item_black = PlaceableItem(margin_sides + 120, 40, CELL_WIDTH // 2, CELL_HEIGHT // 2, "black")
-
     # Player starting money
     player_money = 0
 
@@ -239,22 +235,7 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
 
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                mouse_x, mouse_y = pygame.mouse.get_pos()
-                if item_blue.x <= mouse_x <= item_blue.x + item_blue.width and item_blue.y <= mouse_y <= item_blue.y + item_blue.height:
-                    item_blue.start_drag()
-                elif item_black.x <= mouse_x <= item_black.x + item_black.width and item_black.y <= mouse_y <= item_black.y + item_black.height:
-                    item_black.start_drag()
-
-            elif event.type == pygame.MOUSEBUTTONUP:
-                if item_blue.dragging:
-                    player_money = item_blue.stop_drag(GRID_ORIGIN_X, GRID_ORIGIN_Y, CELL_WIDTH, CELL_HEIGHT, NUM_COLUMNS, NUM_ROWS, player_money)
-                if item_black.dragging:
-                    player_money = item_black.stop_drag(GRID_ORIGIN_X, GRID_ORIGIN_Y, CELL_WIDTH, CELL_HEIGHT, NUM_COLUMNS, NUM_ROWS, player_money)
-
         mouse_pos = pygame.mouse.get_pos()
-        item_blue.update_position(mouse_pos)
-        item_black.update_position(mouse_pos)
 
         # -----------------------------------------------------------
         # DRAW BACKGROUND AND GRID
@@ -279,7 +260,7 @@ def main():
                 )
 #######################
         # -----------------------------------------------------------
-        # TOP UI BAR (item buttons + money display)
+        # TOP UI BAR (shop area + money display)
         # -----------------------------------------------------------
         draw_rounded_rect(screen, "#2F3061", (margin_sides, 12.5, 550, 145), radius=10) ############################
         money_box_width = 120
@@ -290,19 +271,6 @@ def main():
         text_rect = money_text.get_rect(center=(money_box_x + money_box_width // 2, 12.5 + 145 // 2))
         screen.blit(money_text, text_rect)
 ########################
-        item_blue.draw_preview(screen, GRID_ORIGIN_X, GRID_ORIGIN_Y, CELL_WIDTH, CELL_HEIGHT, NUM_COLUMNS, NUM_ROWS)
-        item_black.draw_preview(screen, GRID_ORIGIN_X, GRID_ORIGIN_Y, CELL_WIDTH, CELL_HEIGHT, NUM_COLUMNS, NUM_ROWS)
-        item_blue.draw(screen)
-        item_black.draw(screen)
-
-        # Prices under each item
-        cost_text_blue = small_font.render("10", True, (255, 255, 255))
-        cost_rect_blue = cost_text_blue.get_rect(center=(item_blue.x + item_blue.width // 2, item_blue.y + item_blue.height + 12))
-        screen.blit(cost_text_blue, cost_rect_blue)
-
-        cost_text_black = small_font.render("10", True, (255, 255, 255))
-        cost_rect_black = cost_text_black.get_rect(center=(item_black.x + item_black.width // 2, item_black.y + item_black.height + 12))
-        screen.blit(cost_text_black, cost_rect_black)
 
         # -----------------------------------------------------------
         # UPDATE AND DRAW ALIENS
@@ -334,7 +302,7 @@ def main():
             ball_spawn_timer = 0
             balls.append(FloatingBall())
 
-        item_black.spawn_ball_if_needed(dt, balls)
+        # item_black.spawn_ball_if_needed(dt, balls)
 
         for ball in balls[:]: #######################
             ball.update()
