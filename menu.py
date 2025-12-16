@@ -2,6 +2,7 @@ import pygame
 from sys import exit
 from subprocess import call
 import os
+import main
 
 def display_menu():
     pygame.init()
@@ -54,10 +55,8 @@ def display_menu():
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 if button_rect.collidepoint(event.pos):
                     print("Button Pressed")
-                    pygame.quit()
-                    game_path = os.path.join(os.path.dirname(__file__), "main.py")
-                    call(["python", game_path])
-                    exit()
+                    main.main()
+                    screen.fill("Black")
 
         pygame.display.update()
         clock.tick(60)

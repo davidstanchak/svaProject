@@ -6,13 +6,9 @@ import math
 # INITIAL SETUP
 # Initializes the game window, screen, and clock.
 # -----------------------------------------------------------
-pygame.init()
 pygame.display.set_caption("Scientists vs. Aliens")
 
 SCREEN_WIDTH, SCREEN_HEIGHT = 1280, 720
-screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-clock = pygame.time.Clock()
-
 
 # -----------------------------------------------------------
 # FUNCTION: draw_rounded_rect
@@ -176,6 +172,8 @@ class PlaceableItem:
 # - Player input and dragging
 # -----------------------------------------------------------
 def main():
+    screen = pygame.display.get_surface()
+    clock = pygame.time.Clock()
     running = True
 
     # Grid parameters (9x5 play area)
@@ -218,6 +216,8 @@ def main():
     ball_spawn_interval = 3000
 
     game_started = True
+    game_over = False
+    game_over_time = 0
 
     while running:
         dt = clock.tick(60)
@@ -311,13 +311,18 @@ def main():
             row_aliens = aliens_by_row[row]
             for a in row_aliens:
                 a.update()
-                a.draw(screen)
+                if a.x <= 0:
+                    game_over = True
+                    if game_over_time == 0:
+                        game_over_time = pygame.time.get_ticks()
+                if not game_over:
+                    a.draw(screen)
 
             # Remove aliens that have gone off screen
             aliens_by_row[row] = [a for a in row_aliens if not a.is_off_screen()]
 
         # Spawn a new alien periodically while active
-        if spawning_active and spawn_timer >= spawn_interval:
+        if not game_over and spawning_active and spawn_timer >= spawn_interval:
             spawn_timer = 0
             random_row = random.randint(0, NUM_ROWS - 1)
             row_aliens = aliens_by_row[random_row]
@@ -330,24 +335,35 @@ def main():
         # -----------------------------------------------------------
         # FLOATING BALL SPAWNING AND COLLECTION
         # -----------------------------------------------------------
-        if ball_spawn_timer >= ball_spawn_interval:     #######################
+        if not game_over and ball_spawn_timer >= ball_spawn_interval:     #######################
             ball_spawn_timer = 0
             balls.append(FloatingBall())
 
-        item_black.spawn_ball_if_needed(dt, balls)
+        if not game_over:
+            item_black.spawn_ball_if_needed(dt, balls)
 
         for ball in balls[:]: #######################
             ball.update()
-            ball.draw(screen)
+            if not game_over:
+                ball.draw(screen)
 
             # Collect if close to mouse cursor
-            if ball.is_near_mouse(mouse_pos): #######################
+            if ball.is_near_mouse(mouse_pos):
                 player_money += 5
                 balls.remove(ball)
 
+        if game_over:
+            overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+            overlay.set_alpha(128)
+            overlay.fill((0, 0, 0))
+            screen.blit(overlay, (0, 0))
+            game_over_text = font.render("Game Over", True, (255, 0, 0))
+            screen.blit(game_over_text, (SCREEN_WIDTH//2 - game_over_text.get_width()//2, SCREEN_HEIGHT//2 - game_over_text.get_height()//2))
+
         pygame.display.update()
+        if game_over and current_time - game_over_time > 3000:
+            running = False
 
-    pygame.quit()
 
-
-main()
+if __name__ == "__main__":
+    main()
