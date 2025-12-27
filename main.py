@@ -29,17 +29,27 @@ class Alien:
         self.y = grid_origin_y + row * cell_height + (cell_height // 4)
         self.width = cell_width // 2
         self.height = self.width
-        self.speed = 0.5  # movement speed
-        self.health = 3  # takes 3 hits to die
+        self.speed = 0.35  # movement speed (slower for balance)
+        self.health = 8  # takes 4 shots to die (since laser deals 2 damage)
         self.alpha = 255  # full opacity
+        self.hit_timer = 0  # frames remaining for see-through effect
 
     def update(self):
         self.x -= self.speed  # move left every frame
+        if self.hit_timer > 0:
+            self.hit_timer -= 1
+            if self.hit_timer == 0:
+                self.alpha = 255  # restore full opacity
 
     def draw(self, surface):
         alien_surface = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
         pygame.draw.rect(alien_surface, (0, 255, 0, self.alpha), (0, 0, self.width, self.height))
         surface.blit(alien_surface, (self.x, self.y))
+
+    def hit(self):
+        self.health -= 2  # laser deals 2 damage per hit
+        self.alpha = 100  # see-through
+        self.hit_timer = 10  # frames to stay see-through
 
     def is_off_screen(self):
         return self.x + self.width < 0  # if alien is completely off screen
@@ -123,6 +133,7 @@ class PlaceableItem:
         self.type = item_type
         self.spawn_timers = []   # timers for spawned objects
         self.shoot_timers = []   # timers for shooting lasers (blue only)
+        self.object_health = []  # health for each placed object
 
     def start_drag(self):
         self.dragging = True
@@ -143,11 +154,12 @@ class PlaceableItem:
         snap_y = grid_origin_y + row * cell_height + (cell_height - self.height) // 2
 
         # Only place if the player has enough money
-        cost = 10 if self.type == "blue" else 15
+        cost = 15 if self.type == "blue" else 15  # blue: 15, black: 15
         if player_money >= cost:
             self.placed_items.append((snap_x, snap_y))
             self.spawn_timers.append(0)
             self.shoot_timers.append(0)
+            self.object_health.append(6 if self.type == "blue" else 5)  # blue: 6 hits, black: 5 hits
             player_money -= cost
 
         # Return item back to original place
@@ -164,8 +176,13 @@ class PlaceableItem:
     def draw(self, surface):
         color = (0, 0, 255) if self.type == "blue" else (0, 0, 0)
         pygame.draw.rect(surface, color, (self.x, self.y, self.width, self.height))
-        for px, py in self.placed_items:
+        for idx, (px, py) in enumerate(self.placed_items):
             pygame.draw.rect(surface, color, (px, py, self.width, self.height))
+            # Draw health bar
+            health = self.object_health[idx] if idx < len(self.object_health) else 0
+            if health < 4:
+                bar_width = int(self.width * (health / 4))
+                pygame.draw.rect(surface, (255, 0, 0), (px, py - 8, bar_width, 5))
 
     def draw_preview(self, surface, grid_origin_x, grid_origin_y, cell_width, cell_height, num_columns, num_rows):
         if self.dragging:
@@ -183,37 +200,43 @@ class PlaceableItem:
             preview_surface.fill((0, 0, 255, 100) if self.type == "blue" else (0, 0, 0, 100))
             surface.blit(preview_surface, (snap_x, snap_y))
 
-    def spawn_ball_if_needed(self, dt, balls):
-        # Only the "black" item type spawns currency balls
-        if self.type != "black":
-            return
 
-        for i in range(len(self.spawn_timers)):
-            self.spawn_timers[i] += dt
-            # Spawn ball every 3.25 seconds
-            if self.spawn_timers[i] >= 3250:
-                self.spawn_timers[i] = 0
-                px, py = self.placed_items[i]
-                ball = FloatingBall()
-                ball.x = px + self.width // 2
-                ball.y = py + self.height // 2
-                balls.append(ball)
 
-    def shoot_lasers_if_needed(self, dt, lasers, grid_origin_y, cell_height):
-        # Only the "blue" item type shoots lasers
-        if self.type != "blue":
-            return
+# AlienAttackState must be outside PlaceableItem
+class AlienAttackState:
+    def __init__(self):
+        self.target_idx = None
+        self.attack_timer = 0
 
-        for i in range(len(self.shoot_timers)):
-            self.shoot_timers[i] += dt
-            # Shoot laser every 1 second
-            if self.shoot_timers[i] >= 1000:
-                self.shoot_timers[i] = 0
-                px, py = self.placed_items[i]
-                # Calculate row from y position
-                row = (py - grid_origin_y) // cell_height
-                laser = Laser(px + self.width, py + self.height // 2 - 2.5, row)
-                lasers.append(laser)
+# Move these methods back into PlaceableItem
+
+def spawn_ball_if_needed(self, dt, balls):
+    if self.type != "black":
+        return
+    for i in range(len(self.spawn_timers)):
+        self.spawn_timers[i] += dt
+        if self.spawn_timers[i] >= 6500:  # 5.25s + 1.25s = 6.5s
+            self.spawn_timers[i] = 0
+            px, py = self.placed_items[i]
+            ball = FloatingBall()
+            ball.x = px + self.width // 2
+            ball.y = py + self.height // 2
+            print(f"[DEBUG] Black item mineral spawned at {pygame.time.get_ticks()} ms from ({px},{py})")
+            balls.append(ball)
+PlaceableItem.spawn_ball_if_needed = spawn_ball_if_needed
+
+def shoot_lasers_if_needed(self, dt, lasers, grid_origin_y, cell_height):
+    if self.type != "blue":
+        return
+    for i in range(len(self.shoot_timers)):
+        self.shoot_timers[i] += dt
+        if self.shoot_timers[i] >= 2000:  # fire every 2s (slower)
+            self.shoot_timers[i] = 0
+            px, py = self.placed_items[i]
+            row = (py - grid_origin_y) // cell_height
+            laser = Laser(px + self.width, py + self.height // 2 - 2.5, row)
+            lasers.append(laser)
+PlaceableItem.shoot_lasers_if_needed = shoot_lasers_if_needed
 
 
 # -----------------------------------------------------------
@@ -267,8 +290,8 @@ def main():
 
     # Ball spawning system
     balls = []
-    ball_spawn_timer = 0
-    ball_spawn_interval = 3000
+    ball_spawn_timer = 4750  # Start at interval so first mineral spawns instantly
+    ball_spawn_interval = 4750  # 3s + 0.5s = 3.5s
 
     # Laser system
     lasers = []
@@ -358,7 +381,7 @@ def main():
             laser.draw(screen)
 
         # Prices under each item
-        cost_text_blue = small_font.render("10", True, (255, 255, 255))
+        cost_text_blue = small_font.render("15", True, (255, 255, 255))
         cost_rect_blue = cost_text_blue.get_rect(center=(item_blue.x + item_blue.width // 2, item_blue.y + item_blue.height + 12))
         screen.blit(cost_text_blue, cost_rect_blue)
 
@@ -369,9 +392,68 @@ def main():
         # -----------------------------------------------------------
         # UPDATE AND DRAW ALIENS
         # -----------------------------------------------------------
+        # Alien attack logic
+        if not hasattr(main, 'alien_attack_states'):
+            main.alien_attack_states = [{} for _ in range(NUM_ROWS)]
         for row in range(NUM_ROWS):
             row_aliens = aliens_by_row[row]
-            for a in row_aliens:
+            attack_states = main.alien_attack_states[row]
+            for i, a in enumerate(row_aliens):
+                # Find collision with any placed object (blue or black) in this row
+                hit_type = None
+                hit_idx = None
+                # Check blue items
+                for idx, (px, py) in enumerate(item_blue.placed_items):
+                    if a.y < py + item_blue.height and a.y + a.height > py and a.x < px + item_blue.width and a.x + a.width > px:
+                        hit_type = 'blue'
+                        hit_idx = idx
+                        break
+                # If no blue, check black
+                if hit_idx is None:
+                    for idx, (px, py) in enumerate(item_black.placed_items):
+                        if a.y < py + item_black.height and a.y + a.height > py and a.x < px + item_black.width and a.x + a.width > px:
+                            hit_type = 'black'
+                            hit_idx = idx
+                            break
+                if hit_idx is not None:
+                    # Stop alien and attack
+                    if i not in attack_states:
+                        attack_states[i] = AlienAttackState()
+                        attack_states[i].target_idx = hit_idx
+                        attack_states[i].attack_timer = 1250  # force immediate damage
+                        attack_states[i].target_type = hit_type
+                    a.speed = 0
+                    state = attack_states[i]
+                    state.attack_timer += dt
+                    while state.attack_timer >= 1250:
+                        state.attack_timer -= 1250
+                        # Damage correct object
+                        if state.target_type == 'blue' and hit_idx < len(item_blue.object_health):
+                            item_blue.object_health[hit_idx] -= 1
+                            if item_blue.object_health[hit_idx] <= 0:
+                                del item_blue.placed_items[hit_idx]
+                                del item_blue.spawn_timers[hit_idx]
+                                del item_blue.shoot_timers[hit_idx]
+                                del item_blue.object_health[hit_idx]
+                                for st in attack_states.values():
+                                    if getattr(st, 'target_type', None) == 'blue' and st.target_idx == hit_idx:
+                                        st.target_idx = None
+                        elif state.target_type == 'black' and hit_idx < len(item_black.object_health):
+                            item_black.object_health[hit_idx] -= 1
+                            if item_black.object_health[hit_idx] <= 0:
+                                del item_black.placed_items[hit_idx]
+                                del item_black.spawn_timers[hit_idx]
+                                del item_black.shoot_timers[hit_idx]
+                                del item_black.object_health[hit_idx]
+                                for st in attack_states.values():
+                                    if getattr(st, 'target_type', None) == 'black' and st.target_idx == hit_idx:
+                                        st.target_idx = None
+                    a.speed = 0
+                else:
+                    # Resume movement
+                    a.speed = getattr(a, 'default_speed', 0.45)
+                    if i in attack_states:
+                        del attack_states[i]
                 a.update()
                 if a.x <= 0:
                     game_over = True
@@ -379,7 +461,6 @@ def main():
                         game_over_time = pygame.time.get_ticks()
                 if not game_over:
                     a.draw(screen)
-
             # Remove aliens that have gone off screen
             aliens_by_row[row] = [a for a in row_aliens if not a.is_off_screen()]
 
@@ -410,7 +491,9 @@ def main():
             for alien in aliens_by_row[laser.row][:]:
                 if laser.collides_with(alien):
                     lasers.remove(laser)
-                    aliens_by_row[laser.row].remove(alien)
+                    alien.hit()
+                    if alien.health <= 0:
+                        aliens_by_row[laser.row].remove(alien)
                     break
 
         # Shoot lasers from blue items
@@ -425,6 +508,7 @@ def main():
         # -----------------------------------------------------------
         if not game_over and ball_spawn_timer >= ball_spawn_interval:     #######################
             ball_spawn_timer = 0
+            print(f"[DEBUG] Natural mineral spawned at {pygame.time.get_ticks()} ms")
             balls.append(FloatingBall())
 
         if not game_over:
