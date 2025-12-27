@@ -22,7 +22,7 @@ def draw_rounded_rect(surface, color, rect, radius):
 # CLASS: Alien
 # Represents one alien moving horizontally across a grid row.
 # -----------------------------------------------------------
-class alien:
+class Alien:
     def __init__(self, row, cell_width, cell_height, grid_origin_x, grid_origin_y):
         self.row = row
         self.x = SCREEN_WIDTH
@@ -30,12 +30,16 @@ class alien:
         self.width = cell_width // 2
         self.height = self.width
         self.speed = 0.5  # movement speed
+        self.health = 3  # takes 3 hits to die
+        self.alpha = 255  # full opacity
 
     def update(self):
         self.x -= self.speed  # move left every frame
 
     def draw(self, surface):
-        pygame.draw.rect(surface, (0, 255, 0), (self.x, self.y, self.width, self.height))
+        alien_surface = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        pygame.draw.rect(alien_surface, (0, 255, 0, self.alpha), (0, 0, self.width, self.height))
+        surface.blit(alien_surface, (self.x, self.y))
 
     def is_off_screen(self):
         return self.x + self.width < 0  # if alien is completely off screen
@@ -71,6 +75,37 @@ class FloatingBall:
 
 
 # -----------------------------------------------------------
+# CLASS: Laser
+# Represents a laser shot from blue items towards aliens.
+# -----------------------------------------------------------
+
+
+class Laser:
+    def __init__(self, x, y, row):
+        self.x = x
+        self.y = y
+        self.row = row
+        self.width = 10
+        self.height = 5
+        self.speed = 5  # move right
+
+    def update(self):
+        self.x += self.speed
+
+    def draw(self, surface):
+        pygame.draw.rect(surface, (255, 0, 0), (self.x, self.y, self.width, self.height))
+
+    def is_off_screen(self):
+        return self.x > SCREEN_WIDTH
+
+    def collides_with(self, alien):
+        return (self.x < alien.x + alien.width and
+                self.x + self.width > alien.x and
+                self.y < alien.y + alien.height and
+                self.y + self.height > alien.y)
+
+
+# -----------------------------------------------------------
 # CLASS: PlaceableItem
 # Represents a draggable item (like towers) that can be placed
 # onto grid cells and optionally spawn objects over time.
@@ -87,6 +122,7 @@ class PlaceableItem:
         self.placed_items = []   # list of placed positions
         self.type = item_type
         self.spawn_timers = []   # timers for spawned objects
+        self.shoot_timers = []   # timers for shooting lasers (blue only)
 
     def start_drag(self):
         self.dragging = True
@@ -107,10 +143,12 @@ class PlaceableItem:
         snap_y = grid_origin_y + row * cell_height + (cell_height - self.height) // 2
 
         # Only place if the player has enough money
-        if player_money >= 10:
+        cost = 10 if self.type == "blue" else 15
+        if player_money >= cost:
             self.placed_items.append((snap_x, snap_y))
             self.spawn_timers.append(0)
-            player_money -= 10
+            self.shoot_timers.append(0)
+            player_money -= cost
 
         # Return item back to original place
         self.x = self.original_x
@@ -152,14 +190,30 @@ class PlaceableItem:
 
         for i in range(len(self.spawn_timers)):
             self.spawn_timers[i] += dt
-            # Spawn ball every 2 seconds
-            if self.spawn_timers[i] >= 2000:
+            # Spawn ball every 3.25 seconds
+            if self.spawn_timers[i] >= 3250:
                 self.spawn_timers[i] = 0
                 px, py = self.placed_items[i]
                 ball = FloatingBall()
                 ball.x = px + self.width // 2
                 ball.y = py + self.height // 2
                 balls.append(ball)
+
+    def shoot_lasers_if_needed(self, dt, lasers, grid_origin_y, cell_height):
+        # Only the "blue" item type shoots lasers
+        if self.type != "blue":
+            return
+
+        for i in range(len(self.shoot_timers)):
+            self.shoot_timers[i] += dt
+            # Shoot laser every 1 second
+            if self.shoot_timers[i] >= 1000:
+                self.shoot_timers[i] = 0
+                px, py = self.placed_items[i]
+                # Calculate row from y position
+                row = (py - grid_origin_y) // cell_height
+                laser = Laser(px + self.width, py + self.height // 2 - 2.5, row)
+                lasers.append(laser)
 
 
 # -----------------------------------------------------------
@@ -172,7 +226,8 @@ class PlaceableItem:
 # - Player input and dragging
 # -----------------------------------------------------------
 def main():
-    screen = pygame.display.get_surface()
+    pygame.init()
+    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     clock = pygame.time.Clock()
     running = True
 
@@ -197,7 +252,7 @@ def main():
     spawn_phase_duration = 2000
     break_phase_duration = 6000
     spawning_active = False
-    alien_spawn_delay = 7000  # 7 seconds
+    alien_spawn_delay = 11000  # 11 seconds
 
     # Draggable item buttons
     item_blue = PlaceableItem(margin_sides + 20, 40, CELL_WIDTH // 2, CELL_HEIGHT // 2, "blue")
@@ -214,6 +269,9 @@ def main():
     balls = []
     ball_spawn_timer = 0
     ball_spawn_interval = 3000
+
+    # Laser system
+    lasers = []
 
     game_started = True
     game_over = False
@@ -295,12 +353,16 @@ def main():
         item_blue.draw(screen)
         item_black.draw(screen)
 
+        # Draw lasers
+        for laser in lasers:
+            laser.draw(screen)
+
         # Prices under each item
         cost_text_blue = small_font.render("10", True, (255, 255, 255))
         cost_rect_blue = cost_text_blue.get_rect(center=(item_blue.x + item_blue.width // 2, item_blue.y + item_blue.height + 12))
         screen.blit(cost_text_blue, cost_rect_blue)
 
-        cost_text_black = small_font.render("10", True, (255, 255, 255))
+        cost_text_black = small_font.render("15", True, (255, 255, 255))
         cost_rect_black = cost_text_black.get_rect(center=(item_black.x + item_black.width // 2, item_black.y + item_black.height + 12))
         screen.blit(cost_text_black, cost_rect_black)
 
@@ -329,8 +391,34 @@ def main():
 
             if not row_aliens or row_aliens[-1].x < SCREEN_WIDTH - random.randint(CELL_WIDTH, CELL_WIDTH * 3):
                 aliens_by_row[random_row].append(
-                    alien(random_row, CELL_WIDTH, CELL_HEIGHT, GRID_ORIGIN_X, GRID_ORIGIN_Y)
+                    Alien(random_row, CELL_WIDTH, CELL_HEIGHT, GRID_ORIGIN_X, GRID_ORIGIN_Y)
                 )
+
+        # -----------------------------------------------------------
+        # LASER SHOOTING AND COLLISIONS
+        # -----------------------------------------------------------
+
+
+        # Update lasers
+        for laser in lasers[:]:
+            laser.update()
+            if laser.is_off_screen():
+                lasers.remove(laser)
+
+        # Check laser-alien collisions
+        for laser in lasers[:]:
+            for alien in aliens_by_row[laser.row][:]:
+                if laser.collides_with(alien):
+                    lasers.remove(laser)
+                    aliens_by_row[laser.row].remove(alien)
+                    break
+
+        # Shoot lasers from blue items
+        if not game_over:
+            item_blue.shoot_lasers_if_needed(dt, lasers, GRID_ORIGIN_Y, CELL_HEIGHT)
+
+        # -----------------------------------------------------------
+
 
         # -----------------------------------------------------------
         # FLOATING BALL SPAWNING AND COLLECTION

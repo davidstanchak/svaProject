@@ -152,7 +152,7 @@ class PlaceableItem:
     def spawn_ball_if_needed(self, dt, balls):
         # Only the "black" item type spawns currency balls
         if self.type != "black":
-            return
+            return  
 
         for i in range(len(self.spawn_timers)):
             self.spawn_timers[i] += dt
